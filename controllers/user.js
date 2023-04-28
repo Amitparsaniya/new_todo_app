@@ -1,12 +1,10 @@
 const { isValidObjectId } = require("mongoose");
-const EmailVerificationtoken = require("../models/emailverificationotp");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 const User = require("../models/user");
-const {generateOtp} =require("../utils/generateOtp")
-const{generateRandomBytes} = require("../utils/passwordResetToken")
-const {generateMailtranspoter} = require("../utils/mail");
-const Passwordresettoken = require("../models/passwordresettoken");
+const { generateOtp } = require("../utils/generateOtp");
+const { generateRandomBytes } = require("../utils/passwordResetToken");
+const { generateMailtranspoter } = require("../utils/mail");
 const { sendError, sendScuccess } = require("../utils/helper");
 const statusCode = require("../utils/statuscode");
 const { errormessages } = require("../utils/errormessages");
@@ -24,18 +22,24 @@ exports.create = async (req, res) => {
         statusCode.ERRORCODE
       );
     }
-    const user = new User(req.body);
-    await user.save();
 
-    let otp = generateOtp();
-    console.log(otp);
-
-    const emailtoken = new EmailVerificationtoken({
-      owner: user._id,
+    const otp = generateOtp();
+    const user = new User({
+      name,
+      email,
+      password,
       otp: otp,
     });
 
-    await emailtoken.save();
+    console.log(otp);
+
+    setTimeout(async () => {
+      user.otp = null;
+      user.otpCounter = 0;
+      await user.save();
+    }, 3600000);
+
+    await user.save();
 
     var transport = generateMailtranspoter();
     transport.sendMail({
@@ -69,6 +73,7 @@ exports.verifyEmail = async (req, res) => {
     }
 
     const user = await User.findById(userId);
+    console.log(user);
 
     if (!user) {
       return sendError(res, errormessages.USER_NOT_FOUND, statusCode.ERRORCODE);
@@ -82,10 +87,7 @@ exports.verifyEmail = async (req, res) => {
       );
     }
 
-    const token = await EmailVerificationtoken.findOne({ owner: userId });
-    // console.log(/token/, token);
-
-    if (!token) {
+    if (user.otp === null) {
       return sendError(
         res,
         errormessages.TOKEN_NOT_FOUND,
@@ -93,7 +95,7 @@ exports.verifyEmail = async (req, res) => {
       );
     }
 
-    const isMatched = await token.comparetoken(otp);
+    const isMatched = await user.compareotp(otp);
 
     if (!isMatched) {
       return sendError(
@@ -104,9 +106,9 @@ exports.verifyEmail = async (req, res) => {
     }
 
     user.isVerified = true;
+    console.log(user.otp);
+    user.otp = null;
     await user.save();
-
-    await EmailVerificationtoken.findByIdAndDelete(token._id);
 
     var transport = generateMailtranspoter();
 
@@ -118,7 +120,6 @@ exports.verifyEmail = async (req, res) => {
             <h1>Welcome our app ${user.name}, Thanks for chossing us! </h1>`,
     });
     sendScuccess(res, messages.USER_EMAIL_VERIFIED, statusCode.SUCCESS);
-    //    res.status(200).json({messgae:` ${user.name} ${res.__('USER_EMAIL_VERIFIED')}`})
   } catch (e) {
     console.log(e);
   }
@@ -145,27 +146,22 @@ exports.resendEmailVerificationToken = async (req, res) => {
     );
   }
 
-  const allreadyhastoken = await EmailVerificationtoken.findOne({
-    owner: userId,
-  });
-
-  if (allreadyhastoken) {
-    return sendError(
-      res,
-      errormessages.ALL_READY_SEND_OTP,
-      statusCode.ERRORCODE
-    );
+  if (user.otpCounter >= 3) {
+    return res.send({ error: "limit reached!" });
   }
-
+  if (user.otpCounter == 0) {
+    console.log(/trigerr/, user.otpCounter);
+    setTimeout(async () => {
+      user.otp = null;
+      user.otpCounter = 0;
+      await user.save();
+    }, 3600000);
+  }
   let otp = generateOtp();
   console.log(otp);
-
-  const emailtoken = new EmailVerificationtoken({
-    owner: user._id,
-    otp: otp,
-  });
-
-  await emailtoken.save();
+  user.otpCounter++;
+  user.otp = otp;
+  await user.save();
 
   var transport = generateMailtranspoter();
   transport.sendMail({
@@ -181,7 +177,6 @@ exports.resendEmailVerificationToken = async (req, res) => {
     { message: messages.OTP_SENT_TO_EMAIL },
     statusCode.SUCCESS
   );
-  //    res.status(200).json({messgae:"verification otp sent to your emai address"})
 };
 
 exports.forgetPassword = async (req, res) => {
@@ -202,11 +197,7 @@ exports.forgetPassword = async (req, res) => {
       return sendError(res, errormessages.USER_NOT_FOUND, statusCode.ERRORCODE);
     }
 
-    const allreadyhastoken = await Passwordresettoken.findOne({
-      owner: user._id,
-    });
-
-    if (allreadyhastoken) {
+    if (user.token) {
       return sendError(
         res,
         errormessages.ALL_READY_SEND_OTP,
@@ -214,17 +205,12 @@ exports.forgetPassword = async (req, res) => {
       );
     }
 
-    const token = await generateRandomBytes();
-    // console.log(/t/, token)
+    const generateToken = await generateRandomBytes();
+    user.token = generateToken;
 
-    const passwordresettoken = new Passwordresettoken({
-      owner: user._id,
-      token,
-    });
+    await user.save();
 
-    await passwordresettoken.save();
-
-    const resetpasswordurl = `http://localhost:3000/reset-password?token=${token}&id=${user._id}`;
+    const resetpasswordurl = `http://localhost:3000/reset-password?token=${generateToken}&id=${user._id}`;
 
     var transport = generateMailtranspoter();
     transport.sendMail({
@@ -236,7 +222,6 @@ exports.forgetPassword = async (req, res) => {
         <a href="${resetpasswordurl}">Change Password</a>`,
     });
     sendScuccess(res, messages.FORGET_PASSWORD_LINK, statusCode.SUCCESS);
-    // res.status(200).json({ message: "Link sent to your register email account!" })
   } catch (e) {
     console.log(e);
   }
@@ -266,9 +251,8 @@ exports.resetpassword = async (req, res) => {
   }
 
   user.password = newpassword;
+  user.token = null;
   await user.save();
-
-  await Passwordresettoken.findByIdAndDelete(req.resettoken._id);
 
   var transport = generateMailtranspoter();
 
@@ -322,7 +306,6 @@ exports.signIn = async (req, res) => {
       },
       statusCode.SUCCESS
     );
-
   } catch (e) {
     console.log(e);
   }

@@ -7,7 +7,7 @@ const messages={
     PASWORD_RESET_SUCCESSFULLY:"your password reset successfully!",
     SUCCESSFULLY_LOGIN:"you suceessfully login!",
     UPDATE_TASK:"your task is update successfully!",
-
+    TASK_DELETE_SUCCESSFULLY:"task deleted successfully!"
 }
 
 

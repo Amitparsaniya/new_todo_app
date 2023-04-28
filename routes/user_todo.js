@@ -1,8 +1,7 @@
 const express =require("express")
-const { createTodo, addNewTask, getTasks, deleteTask, getTaskById, updateTask, serchdata, getlatesttask } = require("../controllers/user_todo")
-const multer = require("multer")
+const { createTodo, getTasks, deleteTask, getTaskById, updateTask, serchdata, getlatesttask } = require("../controllers/user_todo")
 const { isAuth } = require("../middleware/Authuser")
-const { newTask, validte, todoValidator } = require("../middleware/validator")
+const { validte, todoValidator } = require("../middleware/validator")
 const { storage } = require("../middleware/multer")
 
 

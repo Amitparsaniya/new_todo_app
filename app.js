@@ -1,6 +1,7 @@
+/* eslint-disable no-undef */
+// eslint-disable-next-line no-undef
 const express =require("express")
 require("./DB/db")
-const path =require("path")
 require("dotenv").config()
 
 const app =express()

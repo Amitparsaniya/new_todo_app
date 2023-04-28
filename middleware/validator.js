@@ -32,7 +32,7 @@ exports.forgetpassword =[
 exports.validte =(req,res,next)=>{
     const error =validationResult(req).array()
     if(error.length){
-        return res.json({error:error[0].msg})
+        return res.status(400).json({error:error[0].msg})
     }
     next()
 }

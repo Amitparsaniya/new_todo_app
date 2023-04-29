@@ -1,6 +1,7 @@
 const { isValidObjectId } = require("mongoose");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+const cron = require("node-cron")
 const User = require("../models/user");
 const { generateOtp } = require("../utils/generateOtp");
 const { generateRandomBytes } = require("../utils/passwordResetToken");
@@ -10,7 +11,6 @@ const statusCode = require("../utils/statuscode");
 const { errormessages } = require("../utils/errormessages");
 const messages = require("../utils/sucessmessage");
 const subject = require("../utils/emailmessages");
-
 exports.create = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -20,36 +20,50 @@ exports.create = async (req, res) => {
         res,
         errormessages.EMAIL_ALLREADY_EXSIST,
         statusCode.ERRORCODE
-      );
+        );
     }
-
-    const otp = generateOtp();
+    
+    // const otp = generateOtp();
+    const otp = await generateOtp();
+    const token = jwt.sign({ email }, 'abcdef', { expiresIn: 60 })
     const user = new User({
       name,
       email,
       password,
       otp: otp,
+      token: token
     });
-
+    console.log(token);
     console.log(otp);
-
-    setTimeout(async () => {
-      user.otp = null;
-      user.otpCounter = 0;
-      await user.save();
-    }, 3600000);
+    
+    // if(user.otp !==null){
+    // }
+    
+    // setTimeout(async () => {
+    //   user.otp = null;
+    //   user.otpCounter = 0;
+    //   await user.save();
+    // }, 3600000);
 
     await user.save();
+    
+      cron.schedule("*/5 * * * *", async()=>{
+      user.token = null
+      user.otp = null
+      await user.save() 
+      console.log('running !!!!!');
+    })
+    
 
-    var transport = generateMailtranspoter();
-    transport.sendMail({
-      from: process.env.VERIFICATION_EMAIL,
-      to: user.email,
-      subject: subject.EMAIL_VERIFICATION,
-      html: `
-            <p>Your Verification OTP</p>
-            <h1>${otp}</h1>`,
-    });
+    // var transport = generateMailtranspoter();
+    // transport.sendMail({
+    //   from: process.env.VERIFICATION_EMAIL,
+    //   to: user.email,
+    //   subject: subject.EMAIL_VERIFICATION,
+    //   html: `
+    //         <p>Your Verification OTP</p>
+    //         <h1>${otp}</h1>`,
+    // });
     sendScuccess(
       res,
       {
@@ -110,15 +124,15 @@ exports.verifyEmail = async (req, res) => {
     user.otp = null;
     await user.save();
 
-    var transport = generateMailtranspoter();
+    // var transport = generateMailtranspoter();
 
-    transport.sendMail({
-      from: process.env.VERIFICATION_EMAIL,
-      to: user.email,
-      subject: subject.WELCOME_EMAIL,
-      html: ` 
-            <h1>Welcome our app ${user.name}, Thanks for chossing us! </h1>`,
-    });
+    // transport.sendMail({
+    //   from: process.env.VERIFICATION_EMAIL,
+    //   to: user.email,
+    //   subject: subject.WELCOME_EMAIL,
+    //   html: ` 
+    //         <h1>Welcome our app ${user.name}, Thanks for chossing us! </h1>`,
+    // });
     sendScuccess(res, messages.USER_EMAIL_VERIFIED, statusCode.SUCCESS);
   } catch (e) {
     console.log(e);
@@ -149,13 +163,13 @@ exports.resendEmailVerificationToken = async (req, res) => {
   if (user.otpCounter >= 3) {
     return res.send({ error: "limit reached!" });
   }
-  if (user.otpCounter == 0) {
-    console.log(/trigerr/, user.otpCounter);
-    setTimeout(async () => {
-      user.otp = null;
-      user.otpCounter = 0;
-      await user.save();
-    }, 3600000);
+  if (user.otpCounter==1 || user.otpCounter==2 || user.otpCounter==3) {
+    cron.schedule("*/3 * * * *", ()=>{
+      user.token = null
+      user.otp = null
+      user.save() 
+      console.log('resend !!!!!');
+    })
   }
   let otp = generateOtp();
   console.log(otp);
@@ -163,15 +177,15 @@ exports.resendEmailVerificationToken = async (req, res) => {
   user.otp = otp;
   await user.save();
 
-  var transport = generateMailtranspoter();
-  transport.sendMail({
-    from: process.env.VERIFICATION_EMAIL,
-    to: user.email,
-    subject: subject.EMAIL_VERIFICATION,
-    html: `
-       <p>Your Verification OTP</p>
-       <h1>${otp}</h1>`,
-  });
+  // var transport = generateMailtranspoter();
+  // transport.sendMail({
+  //   from: process.env.VERIFICATION_EMAIL,
+  //   to: user.email,
+  //   subject: subject.EMAIL_VERIFICATION,
+  //   html: `
+  //      <p>Your Verification OTP</p>
+  //      <h1>${otp}</h1>`,
+  // });
   sendScuccess(
     res,
     { message: messages.OTP_SENT_TO_EMAIL },

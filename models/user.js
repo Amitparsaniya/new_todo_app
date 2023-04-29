@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
     },
     otp:{
         type:String,
-        default:null
+        default:null,
         
     },
     otpCounter:{
@@ -54,7 +54,7 @@ userSchema.pre("save",async function(next){
     const user =this
     if(user.isModified('token')){
         if(user.token!==null){
-            user.token =await bcrypt.hash(user.token,10)
+            user.token =await bcrypt.hash(user.token,16)
         }
     }
     next()

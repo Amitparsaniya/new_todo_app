@@ -5,7 +5,7 @@ require("./DB/db")
 require("dotenv").config()
 
 const app =express()
-const port =process.env.PORT
+const port =process.env.PORT || 8000
  
 const userrouter = require("./routes/user")
 const todoroutes =require("./routes/user_todo")
